@@ -640,7 +640,7 @@ public class VideoPokerScript : MonoBehaviour
         yield return null;
 
         var strippedCommand = command.Trim().ToLowerInvariant();
-        if (strippedCommand == "detailedhelp")
+        if (strippedCommand.Equals("detailedhelp"))
         {
             yield return string.Format("sendtochat {0}", TPGetContextSensitiveHelpMessage());
             yield break;
@@ -656,6 +656,19 @@ public class VideoPokerScript : MonoBehaviour
         {
             yield return "sendtochat Hang on! The machine is still busy...";
             yield break;
+        }
+
+        if (strippedCommand.Equals("reset"))
+        {
+            var buttons = new[] {GameInfoButton, SpeedButton, BetOneButton, BetMaxButton, DealButton};
+            while (!buttons.Any(button => button.Enabled))
+            {
+                yield return null;
+            }
+            var activeButton = buttons.First(button => button.Enabled);
+            yield return activeButton.Selectable;
+            yield return new WaitForSeconds(KtaneVideoPoker.UI.Button.HOLD_WAIT_TIME + 0.1f);
+            yield return activeButton.Selectable;
         }
 
         if (State == KtaneVideoPoker.State.Idle)

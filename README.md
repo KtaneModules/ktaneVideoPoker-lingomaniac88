@@ -9,5 +9,8 @@ Manual available here: https://ktane.timwi.de/HTML/Video%20Poker.html
 
 ## Version History
 
+v1.1:
+- Fix a couple of TP commands
+
 v1.0:
 - Initial release

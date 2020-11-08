@@ -8,7 +8,7 @@ namespace KtaneVideoPoker
     {
         public class Button
         {
-            private const float HOLD_WAIT_TIME = 3f;
+            public const float HOLD_WAIT_TIME = 3f;
 
             public KMSelectable Selectable;
             private Renderer Block;
@@ -32,8 +32,8 @@ namespace KtaneVideoPoker
                 Selectable.OnInteract += delegate
                 {
                     Selectable.AddInteractionPunch(0.5f);
-                    Owner.Audio.PlaySoundAtTransform(Text.gameObject.activeSelf ? "touch" : "badtouch", Owner.transform);
-                    if (Text.gameObject.activeSelf)
+                    Owner.Audio.PlaySoundAtTransform(Enabled ? "touch" : "badtouch", Owner.transform);
+                    if (Enabled)
                     {
                         if (ActiveCoroutine != null)
                         {
@@ -45,7 +45,7 @@ namespace KtaneVideoPoker
                 };
                 Selectable.OnInteractEnded += delegate()
                 {
-                    if (Text.gameObject.activeSelf)
+                    if (Enabled)
                     {
                         if (ActiveCoroutine != null)
                         {
@@ -70,6 +70,14 @@ namespace KtaneVideoPoker
             {
                 Text.gameObject.SetActive(true);
                 Block.material = Owner.MaterialInfo.ButtonEnabled;
+            }
+
+            public bool Enabled
+            {
+                get
+                {
+                    return Text.gameObject.activeSelf;
+                }
             }
 
             private IEnumerator CheckForLongPress()
