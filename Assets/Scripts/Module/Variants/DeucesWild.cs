@@ -105,6 +105,7 @@ namespace KtaneVideoPoker
                 {
                     Core.HandResult.NaturalRoyalFlush,
                     Core.HandResult.FourDeuces,
+                    Core.HandResult.WildRoyalFlush,
                     Core.HandResult.FiveOfAKind,
                     Core.HandResult.StraightFlush,
                     Core.HandResult.FourOfAKind,
@@ -117,19 +118,7 @@ namespace KtaneVideoPoker
 
             public int PayoutForResult(Core.HandResult result)
             {
-                int index = new List<Core.HandResult>(new[]
-                {
-                    Core.HandResult.NaturalRoyalFlush,
-                    Core.HandResult.FourDeuces,
-                    Core.HandResult.WildRoyalFlush,
-                    Core.HandResult.FiveOfAKind,
-                    Core.HandResult.StraightFlush,
-                    Core.HandResult.FourOfAKind,
-                    Core.HandResult.FullHouse,
-                    Core.HandResult.Flush,
-                    Core.HandResult.Straight,
-                    Core.HandResult.ThreeOfAKind
-                }).IndexOf(result);
+                int index = HandTypes().ToList().IndexOf(result);
                 return index == -1 ? 0 : PayoutArray[index];
             }
 
