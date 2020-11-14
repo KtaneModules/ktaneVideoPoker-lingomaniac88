@@ -10,7 +10,7 @@ namespace KtaneVideoPoker
         {
             private static String[] RankValues = new[]
             {
-                "0", "A", "2", "3", "4", "5", "6", "7", "8", "9", "I0", "J", "Q", "K"
+                "0", "A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"
             };
             private static Dictionary<Core.Suit, String> SuitValues = new Dictionary<Core.Suit, String>()
             {
@@ -94,7 +94,8 @@ namespace KtaneVideoPoker
                         }
                         else
                         {
-                            RankText.text = RankValues[_Card.Rank];
+                            // Because this font has tabular figures by default, "I0" looks better than "10"
+                            RankText.text = RankValues[_Card.Rank].Replace('1', 'I');
                             SuitText.text = BigSuitText.text = SuitValues[_Card.Suit];
 
                             bool isRed = _Card.Suit == Core.Suit.Diamonds || _Card.Suit == Core.Suit.Hearts;
@@ -141,6 +142,12 @@ namespace KtaneVideoPoker
                         }
                     }
                 }
+            }
+
+            public string CardAsLogString()
+            {
+                // When logging, we'd rather print "10" than "I0"
+                return RankText.text.Replace('I', '1') + SuitText.text;
             }
         }
     }

@@ -213,7 +213,7 @@ public class VideoPokerScript : MonoBehaviour
         // Log cards
         if (!IsSolved)
         {
-            ModuleLog("Dealt cards: {0}", CardObjects.Select(co => co.RankText.text + co.SuitText.text).Join(" "));
+            ModuleLog("Dealt cards: {0}", CardObjects.Select(co => co.CardAsLogString()).Join(" "));
         }
 
         var hand = new KtaneVideoPoker.Core.Hand(CardObjects.Select(co => co.Card).Where(c => c.HasValue).Select(c => c.Value));
@@ -527,7 +527,6 @@ public class VideoPokerScript : MonoBehaviour
 
     private void OnPressBetMax(KMSelectable sender)
     {
-        ModuleLog("OnPressBetMax");
         if (State == KtaneVideoPoker.State.Idle)
         {
             BetAmount = 5;
