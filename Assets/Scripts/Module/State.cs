@@ -11,6 +11,7 @@ namespace KtaneVideoPoker
         ChooseHolds,
         SecondDeal,
         Paying,
-        JackpotPending
+        JackpotPending,
+        ShowPayTableMidHand,
     }
 }

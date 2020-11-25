@@ -265,6 +265,11 @@ public class VideoPokerScript : MonoBehaviour
             GameMessageText.Text = intermediateHandType.ToFriendlyString();
         }
 
+        GameInfoButton.Text.text = "Game Info";
+        GameInfoButton.Enable();
+
+        SpeedButton.Enable();
+
         DealButton.Text.text = "Draw";
         DealButton.Enable();
     }
@@ -308,6 +313,8 @@ public class VideoPokerScript : MonoBehaviour
 
             State = KtaneVideoPoker.State.SecondDeal;
 
+            GameInfoButton.Disable();
+            SpeedButton.Disable();
             DealButton.Disable();
 
             for (int i = 0; i < 5; i++)
@@ -380,7 +387,7 @@ public class VideoPokerScript : MonoBehaviour
         {
             ModuleLog("JACKPOT!");
         }
-        Audio.PlaySoundAtTransform("jackpot_-3db", transform);
+        Audio.PlaySoundAtTransform("jackpot_-3dB", transform);
         State = KtaneVideoPoker.State.JackpotPending;
 
         DealButton.Text.text = "Claim";
@@ -493,11 +500,41 @@ public class VideoPokerScript : MonoBehaviour
                 card.gameObject.SetActive(true);
             }
         }
+        else if (State == KtaneVideoPoker.State.ChooseHolds)
+        {
+            State = KtaneVideoPoker.State.ShowPayTableMidHand;
+            PayTable.Visible = true;
+
+            GameInfoButton.Text.text = "Back";
+            SpeedButton.Disable();
+            DealButton.Disable();
+
+            // Not the prettiest, but the KMSelectables are the top-level card objects
+            foreach (var card in Raw_CardSelectables)
+            {
+                card.gameObject.SetActive(false);
+            }
+        }
+        else if (State == KtaneVideoPoker.State.ShowPayTableMidHand)
+        {
+            State = KtaneVideoPoker.State.ChooseHolds;
+            PayTable.Visible = false;
+
+            GameInfoButton.Text.text = "Game Info";
+            SpeedButton.Disable();
+            DealButton.Enable();
+
+            // Not the prettiest, but the KMSelectables are the top-level card objects
+            foreach (var card in Raw_CardSelectables)
+            {
+                card.gameObject.SetActive(true);
+            }
+        }
     }
 
     private void OnPressSpeed(KMSelectable sender)
     {
-        if (State == KtaneVideoPoker.State.Idle)
+        if (State == KtaneVideoPoker.State.Idle || State == KtaneVideoPoker.State.ChooseHolds)
         {
             SpeedButton.ChangeSpeed();
         }
@@ -549,6 +586,9 @@ public class VideoPokerScript : MonoBehaviour
             if (!IsSolved && BetAmount != 5)
             {
                 ModuleLog("Strike! You should always bet max to keep the payback rate as high as possible. Don't be a wimp; you're not even playing with real money!");
+                Streak = 0;
+                ProgressLightManager.SetValue(0);
+                StartCoroutine(BlinkProgressLightsRed());
                 BombModule.HandleStrike();
             }
             else if (Credits < BetAmount)
@@ -623,10 +663,11 @@ public class VideoPokerScript : MonoBehaviour
             case KtaneVideoPoker.State.Paying:
                 return "Use \"!{1} deal\" or \"!{1} bet #\" to begin a deal. Use \"!{1} gameinfo\" to view game info. \"!{1} speed (0|1|2|3)\" to set the game's speed (if no number is specified, the speed button will be pressed once).";
             case KtaneVideoPoker.State.ShowPayTable:
+            case KtaneVideoPoker.State.ShowPayTableMidHand:
                 return "Use \"!{1} back\" to go back to the main screen.";
             case KtaneVideoPoker.State.FirstDeal:
             case KtaneVideoPoker.State.ChooseHolds:
-                return "Use \"!{1} hold ...\" to select which cards to hold. You can use positions or card names separated by spaces or commas, or the word \"none\". Examples include \"hold none\", \"hold 1 3 5\", \"hold 2,3, 4,5\", \"hold 3c,7c,10c,Kc\", \"hold Td Th 2s\", \"hold 5\u2663, 5\u2665, 5\u2660\", etc.";
+                return "Use \"!{1} hold ...\" to select which cards to hold. You can use positions or card names separated by spaces or commas, or the word \"none\". Examples include \"hold none\", \"hold 1 3 5\", \"hold 2,3, 4,5\", \"hold 3c,7c,10c,Kc\", \"hold Td Th 2s\", \"hold 5\u2663, 5\u2665, 5\u2660\", etc. Use \"!{1} gameinfo\" to view game info. \"!{1} speed (0|1|2|3)\" to set the game's speed (if no number is specified, the speed button will be pressed once).";
             case KtaneVideoPoker.State.JackpotPending:
                 return "Lucky you! Use \"!{1} claim\" to claim your jackpot. This will also solve the module, so mind the queue if it exists!";
             default:
@@ -636,8 +677,6 @@ public class VideoPokerScript : MonoBehaviour
 
     IEnumerator ProcessTwitchCommand(string command)
     {
-        yield return null;
-
         var strippedCommand = command.Trim().ToLowerInvariant();
         if (strippedCommand.Equals("detailedhelp"))
         {
@@ -660,10 +699,11 @@ public class VideoPokerScript : MonoBehaviour
         if (strippedCommand.Equals("reset"))
         {
             var buttons = new[] {GameInfoButton, SpeedButton, BetOneButton, BetMaxButton, DealButton};
-            while (!buttons.Any(button => button.Enabled))
+            do
             {
                 yield return null;
             }
+            while (!buttons.Any(button => button.Enabled));
             var activeButton = buttons.First(button => button.Enabled);
             yield return activeButton.Selectable;
             yield return new WaitForSeconds(KtaneVideoPoker.UI.Button.HOLD_WAIT_TIME + 0.1f);
@@ -674,15 +714,21 @@ public class VideoPokerScript : MonoBehaviour
         {
             if (strippedCommand.Equals("deal"))
             {
+                yield return null;
                 // Pressing Bet Max will start a deal anyway, so we'll just be kind to the user
                 yield return new[] {BetMaxButton.Selectable};
             }
             else if (tokens[0].Equals("bet") && tokens.Length == 2)
             {
                 var betAmount = tokens[1];
+                if (betAmount.Equals("max"))
+                {
+                    betAmount = "5";
+                }
                 if (betAmount.Length == 1 && ((int) betAmount[0]).InRange('1', '5'))
                 {
                     int desiredBet = betAmount[0] - '0';
+                    yield return null;
                     while (BetAmount != desiredBet)
                     {
                         yield return new[] {BetOneButton.Selectable};
@@ -693,16 +739,19 @@ public class VideoPokerScript : MonoBehaviour
             }
             else if (strippedCommand.Equals("gameinfo"))
             {
+                yield return null;
                 yield return new[] {GameInfoButton.Selectable};
             }
             else if (tokens[0] == "speed" && tokens.Length <= 2)
             {
                 if (tokens.Length == 1)
                 {
+                    yield return null;
                     yield return new[] {SpeedButton.Selectable};
                 }
                 else if (((int) tokens[1][0]).InRange('0', '3'))
                 {
+                    yield return null;
                     int desiredSpeed = tokens[1][0] - '0';
                     while (desiredSpeed != SpeedButton.GetSpeedIndex())
                     {
@@ -712,77 +761,104 @@ public class VideoPokerScript : MonoBehaviour
                 }
             }
         }
-        else if (State == KtaneVideoPoker.State.ShowPayTable && strippedCommand.Equals("back"))
+        else if ((State == KtaneVideoPoker.State.ShowPayTable || State == KtaneVideoPoker.State.ShowPayTableMidHand) && strippedCommand.Equals("back"))
         {
+            yield return null;
             yield return new[] {GameInfoButton.Selectable};
         }
-        else if (State == KtaneVideoPoker.State.ChooseHolds && tokens[0].Equals("hold"))
+        else if (State == KtaneVideoPoker.State.ChooseHolds)
         {
-            // This might solve
-            yield return "solve";
-
-            var tokensToPositions = Enumerable.Range(0, 5).ToDictionary(i => (i + 1).ToString(), i => i);
-            for (int i = 0; i < CardObjects.Length; i++)
+            if (tokens[0].Equals("hold") || tokens[0].Equals("keep"))
             {
-                var optionalCard = CardObjects[i].Card;
-                // Only non-jokers can be identified by their values.
-                if (optionalCard.HasValue && !optionalCard.Value.IsJoker)
+                // This might solve
+                yield return "solve";
+
+                var tokensToPositions = Enumerable.Range(0, 5).ToDictionary(i => (i + 1).ToString(), i => i);
+                for (int i = 0; i < CardObjects.Length; i++)
                 {
-                    var card = optionalCard.Value;
-                    var validRankIdentifiers = new[] {card.ToString().Substring(0, 1).ToLowerInvariant()}.ToList();
-                    if (card.Rank == 10)
+                    var optionalCard = CardObjects[i].Card;
+                    // Only non-jokers can be identified by their values.
+                    if (optionalCard.HasValue && !optionalCard.Value.IsJoker)
                     {
-                        // In this case, accept "T" (which comes from ToString()) or "10" (which we must add explicitly)
-                        validRankIdentifiers.Add("10");
+                        var card = optionalCard.Value;
+                        var validRankIdentifiers = new[] {card.ToString().Substring(0, 1).ToLowerInvariant()}.ToList();
+                        if (card.Rank == 10)
+                        {
+                            // In this case, accept "T" (which comes from ToString()) or "10" (which we must add explicitly)
+                            validRankIdentifiers.Add("10");
+                        }
+                        var validSuitIdentifiers = new[] {card.ToString().Substring(1)}.ToList();
+                        switch (card.Suit)
+                        {
+                            case KtaneVideoPoker.Core.Suit.Clubs:
+                                validSuitIdentifiers.Add("c");
+                                break;
+                            case KtaneVideoPoker.Core.Suit.Diamonds:
+                                validSuitIdentifiers.Add("d");
+                                break;
+                            case KtaneVideoPoker.Core.Suit.Hearts:
+                                validSuitIdentifiers.Add("h");
+                                break;
+                            case KtaneVideoPoker.Core.Suit.Spades:
+                                validSuitIdentifiers.Add("s");
+                                break;
+                        }
+                        var validCardIdentifiers = validRankIdentifiers.SelectMany(r => validSuitIdentifiers.Select(s => r + s));
+                        foreach (var identifier in validCardIdentifiers)
+                        {
+                            tokensToPositions[identifier] = i;
+                        }
                     }
-                    var validSuitIdentifiers = new[] {card.ToString().Substring(1)}.ToList();
-                    switch (card.Suit)
+                }
+
+                var holdThese = tokens.Skip(1).SelectMany(token => token.Split(new[] {','})).Where(token => token.Length > 0);
+                if (holdThese.Count() == 1 && holdThese.First().Equals("none"))
+                {
+                    // Special case: discard all cards
+                    yield return CardObjects.Where(co => co.Held).Select(co => co.Selectable).Concat(new[] {DealButton.Selectable}).ToArray();
+                }
+                else if (holdThese.Count() > 0)
+                {
+                    var unknownCards = holdThese.Where(token => !tokensToPositions.ContainsKey(token));
+                    if (unknownCards.Any())
                     {
-                        case KtaneVideoPoker.Core.Suit.Clubs:
-                            validSuitIdentifiers.Add("c");
-                            break;
-                        case KtaneVideoPoker.Core.Suit.Diamonds:
-                            validSuitIdentifiers.Add("d");
-                            break;
-                        case KtaneVideoPoker.Core.Suit.Hearts:
-                            validSuitIdentifiers.Add("h");
-                            break;
-                        case KtaneVideoPoker.Core.Suit.Spades:
-                            validSuitIdentifiers.Add("s");
-                            break;
+                        yield return string.Format("sendtochaterror I can't find these cards: {0}", unknownCards.Select(str => "\"" + str + "\"").Join(", "));
+                        yield break;
                     }
-                    var validCardIdentifiers = validRankIdentifiers.SelectMany(r => validSuitIdentifiers.Select(s => r + s));
-                    foreach (var identifier in validCardIdentifiers)
+                    var bitmaskToHold = holdThese.Select(token => tokensToPositions[token]).Aggregate(0, (bitmask, i) => bitmask | (1 << i));
+                    var indexShouldBeHeld = Enumerable.Range(0, 5).Select(i => (bitmaskToHold & (1 << i)) != 0).ToArray();
+
+                    var cardsToTouch = Enumerable.Range(0, 5).Where(i => CardObjects[i].Held != indexShouldBeHeld[i]).Select(i => CardObjects[i]);
+
+                    if (cardsToTouch.Any())
                     {
-                        tokensToPositions[identifier] = i;
+                        yield return cardsToTouch.Select(cardObject => cardObject.Selectable).ToArray();
                     }
+                    yield return new[] {DealButton.Selectable};
                 }
             }
-
-            var holdThese = tokens.Skip(1).SelectMany(token => token.Split(new[] {','})).Where(token => token.Length > 0);
-            if (holdThese.Count() == 1 && holdThese.First().Equals("none"))
+            else if (strippedCommand.Equals("gameinfo"))
             {
-                // Special case: discard all cards
-                yield return CardObjects.Where(co => co.Held).Select(co => co.Selectable).Concat(new[] {DealButton.Selectable}).ToArray();
+                yield return null;
+                yield return new[] {GameInfoButton.Selectable};
             }
-            else if (holdThese.Count() > 0)
+            else if (tokens[0] == "speed" && tokens.Length <= 2)
             {
-                var unknownCards = holdThese.Where(token => !tokensToPositions.ContainsKey(token));
-                if (unknownCards.Any())
+                if (tokens.Length == 1)
                 {
-                    yield return string.Format("sendtochaterror I can't find these cards: {0}", unknownCards.Select(str => "\"" + str + "\"").Join(", "));
-                    yield break;
+                    yield return null;
+                    yield return new[] {SpeedButton.Selectable};
                 }
-                var bitmaskToHold = holdThese.Select(token => tokensToPositions[token]).Aggregate(0, (bitmask, i) => bitmask | (1 << i));
-                var indexShouldBeHeld = Enumerable.Range(0, 5).Select(i => (bitmaskToHold & (1 << i)) != 0).ToArray();
-
-                var cardsToTouch = Enumerable.Range(0, 5).Where(i => CardObjects[i].Held != indexShouldBeHeld[i]).Select(i => CardObjects[i]);
-
-                if (cardsToTouch.Any())
+                else if (((int) tokens[1][0]).InRange('0', '3'))
                 {
-                    yield return cardsToTouch.Select(cardObject => cardObject.Selectable).ToArray();
+                    yield return null;
+                    int desiredSpeed = tokens[1][0] - '0';
+                    while (desiredSpeed != SpeedButton.GetSpeedIndex())
+                    {
+                        yield return new[] {SpeedButton.Selectable};
+                        yield return new WaitForSeconds(0.1f);
+                    }
                 }
-                yield return new[] {DealButton.Selectable};
             }
         }
         else if (State == KtaneVideoPoker.State.JackpotPending && strippedCommand.Equals("claim"))
